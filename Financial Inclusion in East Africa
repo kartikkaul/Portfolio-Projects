@@ -1,1 +1,876 @@
+# Load Data
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Read the CSV file
+data = pd.read_csv('Train .csv')
+
+any_nan = data.isna().any(axis=1).any()
+
+if any_nan:
+    print("Some rows have NaN values.")
+else:
+    print("All rows have no NaN values.")
+# There is no missing value.
+data.head()
+data.describe()
+# There are three numeric variables.
+# check the only string columns
+data.describe(include=[object])
+# There are 10 category variables.
+# Check the education_level, job_type, and marital_status whether there are multicollinearity
+# job_type has multicollinearity problem. Such as the 'Farming and Fishing' should be 'Self employed'...
+print(data['education_level'].unique())
+print(data['job_type'].unique())
+print(data['marital_status'].unique())
+# dealing with multicollinearity in job_type
+data['job_type'] = data['job_type'].replace({'Farming and Fishing': 'Self employed', 'Dont Know/Refuse to answer': 'Other Income', 
+                                          'Formally employed Private': 'Formally employed', 'Formally employed Government': 'Formally employed', 
+                                          'Government Dependent': 'Dependent', 'Remittance Dependent': 'Dependent'})
+data['job_type'].unique()
+# Self employed: Farming and Fishing +  Self employed(farming and fishing are often self-employed)
+# Dependent: Government dependent + Remittance Dependent(Both from others)
+# Formally employed: Formally employed Government + Formally employed Private(steady income)
+# Informally employed
+# Other Income: Other Income + Dont Know/Refuse to answer
+# No Income
+# Extract the input features into X
+X = data
+
+# Extract the target variable 'bank_account' into y
+y = X['bank_account']
+X = X.drop(['bank_account','uniqueid','year'], axis=1)
+# Check the dataset 
+X.head()
+# Exploring numeric varaibles:
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# house_size
+# Create boxplot
+sns.set(style="ticks")
+plt.figure(figsize=(8, 5))
+ax = sns.boxplot(data=X['household_size'], palette='Set2', width=0.6, orient='h',boxprops=dict(facecolor='orange'))
+
+# Set labels and title
+ax.set_xlabel('Size', fontsize=14)
+ax.set_title('household_size Boxplot', fontsize=16)
+
+# Show plot
+plt.show()
+# Plot the histogram with yellow color
+plt.hist(X['household_size'], color='orange')
+# Add title and x-axis label
+plt.title('Histogram of household_size')
+plt.xlabel('Size')
+# Show the plot
+plt.show()
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Create boxplot
+sns.set(style="ticks")
+plt.figure(figsize=(8, 5))
+ax = sns.boxplot(data=X['age_of_respondent'], palette='Set2', width=0.6, orient='h',boxprops=dict(facecolor='orange'))
+
+# Set labels and title
+ax.set_xlabel('Age', fontsize=14)
+ax.set_title('age_of_respondent Boxplot', fontsize=16)
+
+# Show plot
+plt.show()
+# Plot the histogram with yellow color
+plt.hist(X['age_of_respondent'], color='orange')
+# Add title and x-axis label
+plt.title('Histogram of age_of_respondent')
+plt.xlabel('Age')
+# Show the plot
+plt.show()
+# For category:
+# Count occurrences of each value in 'fruit' column
+counts = X['country'].value_counts()
+
+# Create pie plot
+counts.plot.pie(colors=['red', 'orange', 'yellow', 'pink'], autopct='%1.1f%%', startangle=90)
+
+# Add title
+plt.title('Country Distribution')
+
+# Show plot
+plt.show()
+# plot each variable using appropriate plot type
+for i, var in enumerate(X.columns):
+    if X[var].dtype == 'object':
+        # plot count plot
+        sns.countplot(x=var, data=X)
+        plt.xlabel(var)
+        plt.ylabel('Count')
+        plt.xticks(rotation=45, ha='right', fontsize=12)
+        plt.show()
+        
+        # plot stacked bar chart
+        ct = pd.crosstab(X[var], y)
+        ct.plot(kind='bar', stacked=True)
+        plt.xlabel(var)
+        plt.ylabel('Count')
+        plt.xticks(rotation=45, ha='right', fontsize=12)
+        plt.legend(title='Bank Account', fontsize=12)
+        plt.show()
+        
+        # plot normalized stacked bar chart
+        ct_norm = ct.div(ct.sum(axis=1), axis=0)
+        ct_norm.plot(kind='bar', stacked=True)
+        plt.xlabel(var)
+        plt.ylabel('Proportion')
+        plt.xticks(rotation=45, ha='right', fontsize=12)
+        plt.legend(title='Bank Account', fontsize=12)
+        plt.show()
+    else:
+        # plot histogram
+        sns.histplot(x=var, data=X, bins=20)
+        plt.xlabel(var)
+        plt.ylabel('Frequency')
+        plt.tick_params(axis='both', labelsize=12)
+        plt.show()
+        
+        # plot box plot
+        sns.boxplot(x=y, y=var, data=data)
+        plt.xlabel('Bank Account')
+        plt.ylabel(var)
+        plt.tick_params(axis='both', labelsize=12)
+        plt.show()
+        
+        # plot violin plot
+        sns.violinplot(x=y, y=var, data=data)
+        plt.xlabel('Bank Account')
+        plt.ylabel(var)
+        plt.tick_params(axis='both', labelsize=12)
+        plt.show()
+import numpy as np
+import pandas as pd
+from scipy.stats import pointbiserialr, chi2_contingency
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+# Define the Cramér's V function
+def cramers_v(x, y):
+    confusion_matrix = pd.crosstab(x, y)
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    rcorr = r - ((r-1)**2)/(n-1)
+    kcorr = k - ((k-1)**2)/(n-1)
+    return np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
+
+# Combine your data including the target variable
+data_combined = pd.concat([X, y], axis=1)
+
+# Create an empty correlation matrix
+corr_matrix = pd.DataFrame(index=data_combined.columns, columns=data_combined.columns, dtype=float)
+
+
+# Apply one-hot encoding to the categorical features in the training and test sets
+X_encoded = pd.get_dummies(X, columns=['country',  'location_type', 'cellphone_access', 'gender_of_respondent', 'relationship_with_head', 'marital_status', 'education_level', 'job_type'])
+# Combine your data including the target variable
+data_combined = pd.concat([X_encoded, y], axis=1)
+
+# Create an empty correlation matrix
+corr_matrix = pd.DataFrame(index=data_combined.columns, columns=data_combined.columns, dtype=float)
+# Compute the correlation coefficients
+for col1 in data_combined.columns:
+    for col2 in data_combined.columns:
+        if col1 != col2:
+            if (data_combined.loc[:, col1].dtypes != 'object') & (data_combined.loc[:, col2].dtypes != 'object'):
+                # Numerical - numerical pair
+                corr_matrix.loc[col1, col2] = data_combined[col1].corr(data_combined[col2])
+            elif ((data_combined.loc[:, col1].dtypes == 'object') & (data_combined.loc[:, col2].dtypes != 'object')) | ((data_combined.loc[:, col1].dtypes != 'object') & (data_combined.loc[:, col2].dtypes == 'object')):
+                # Numerical - categorical pair
+                if data_combined.loc[:, col1].dtypes == 'object':
+                    categorical_col = col1
+                    numerical_col = col2
+                else:
+                    categorical_col = col2
+                    numerical_col = col1
+                
+                corr_matrix.loc[col1, col2] = pointbiserialr(data_combined[numerical_col], data_combined[categorical_col].astype('category').cat.codes)[0]
+            else:
+                # Categorical - categorical pair
+                corr_matrix.loc[col1, col2] = cramers_v(data_combined[col1], data_combined[col2])
+        else:
+            corr_matrix.loc[col1, col2] = 1
+
+#Plot the heatmap
+plt.figure(figsize=(36, 30))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', linewidths=0.5, vmin=-1, vmax=1)
+plt.title("Mixed Correlation Matrix Heatmap")
+plt.show()
+# Modeling
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+
+
+# Split the data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
+# Drop columns not being used
+X_train = X_train[['cellphone_access', 'education_level', 'job_type', 'relationship_with_head', 'marital_status']]
+X_test = X_test[['cellphone_access', 'education_level', 'job_type', 'relationship_with_head', 'marital_status']]
+
+# Apply one-hot encoding to the categorical features in the training and test sets
+X_train_encoded = pd.get_dummies(X_train, columns=['cellphone_access', 'education_level', 'job_type', 'relationship_with_head', 'marital_status'])
+X_test_encoded = pd.get_dummies(X_test, columns=['cellphone_access', 'education_level', 'job_type', 'relationship_with_head', 'marital_status'])
+
+# Make sure the test set has the same columns as the training set
+X_test_encoded = X_test_encoded.reindex(columns=X_train_encoded.columns, fill_value=0)
+
+
+'''
+# Fit the scaler on the training data and transform both the training and test sets
+scaler = StandardScaler()
+numerical_features = ['household_size', 'age_of_respondent']
+
+X_train_encoded[numerical_features] = scaler.fit_transform(X_train_encoded[numerical_features])
+X_test_encoded[numerical_features] = scaler.transform(X_test_encoded[numerical_features])
+
+'''
+X_train
+X_test
+# define a mapping dictionary
+mapping = {'Yes': 1, 'No': 0}
+
+y_train = y_train.map(mapping)
+y_test = y_test.map(mapping)
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, plot_confusion_matrix
+
+from sklearn.utils import resample
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+
+
+# resample the training data to balance the classes
+X_train_resampled, y_train_resampled = resample(X_train_encoded[y_train == 0],
+                                                y_train[y_train == 0],
+                                                replace=True,
+                                                n_samples=X_train_encoded[y_train == 1].shape[0],
+                                                random_state=42)
+
+X_train_balanced = pd.concat([X_train_resampled, X_train_encoded[y_train == 1]])
+y_train_balanced = pd.concat([y_train_resampled, y_train[y_train == 1]])
+
+# compute class weights
+class_weight = {0: X_train_encoded.shape[0] / (2 * sum(y_train == 0)), 
+                1: X_train_encoded.shape[0] / (2 * sum(y_train == 1))}
+
+# create Random Forest model with class weights
+rf_balanced = RandomForestClassifier(n_estimators=100, class_weight=class_weight, random_state=42)
+
+
+# Random Forest:
+from sklearn.model_selection import GridSearchCV
+
+
+
+# define parameter grid for Random Forest
+param_grid_rf = {'n_estimators': [50, 100, 200], 
+                 'max_depth': [None, 10, 20], 
+                 'min_samples_split': [2, 5, 10], 
+                 'class_weight': [None, 'balanced']}
+
+# perform grid search for Random Forest
+rf_grid_search = GridSearchCV(estimator=RandomForestClassifier(random_state=42), 
+                              param_grid=param_grid_rf, scoring='roc_auc',
+                              cv=3)
+rf_grid_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each model
+print(f"Random Forest: {rf_grid_search.best_params_}")
+print('Random Forest Best accuracy: %f' % rf_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(rf_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_class_weight', 'param_max_depth', 'param_min_samples_split', 'param_n_estimators', 'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+# SVM
+# define parameter grid for SVM
+param_grid_svm = {'C': [0.1, 1, 10], 
+                  'kernel': ['linear', 'rbf'], 
+                  'class_weight': [None, 'balanced']}
+
+# perform grid search for SVM
+svm_grid_search = GridSearchCV(estimator=SVC(random_state=42), 
+                               param_grid=param_grid_svm, scoring='roc_auc',
+                               cv=3)
+svm_grid_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each model
+print(f"SVM: {svm_grid_search.best_params_}")
+print('SVM Best accuracy: %f' % svm_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(svm_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_C', 'param_class_weight', 'param_kernel', 'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+# kNN
+# define parameter grid for kNN
+param_grid_knn = {
+    'n_neighbors': [3, 5, 7, 9],
+    'weights': ['uniform', 'distance'],
+    'metric': ['euclidean', 'manhattan', 'chebyshev']
+}
+
+# perform grid search for kNN
+knn_grid_search = GridSearchCV(estimator=KNeighborsClassifier(), 
+                               param_grid=param_grid_knn, scoring='roc_auc',
+                               cv=3)
+knn_grid_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each model
+print(f"kNN: {knn_grid_search.best_params_}")
+print('kNN Best accuracy: %f' % knn_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(knn_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_metric', 'param_n_neighbors', 'param_weights',  'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+# make predictions on the test data using best Random Forest model
+rf_best = rf_grid_search.best_estimator_
+y_pred_rf = rf_best.predict(X_test_encoded)
+accuracy_rf = accuracy_score(y_test, y_pred_rf)
+cm_rf = confusion_matrix(y_test, y_pred_rf)
+
+# make predictions on the test data using best SVM model
+svm_best = svm_grid_search.best_estimator_
+y_pred_svm = svm_best.predict(X_test_encoded)
+accuracy_svm = accuracy_score(y_test, y_pred_svm)
+cm_svm = confusion_matrix(y_test, y_pred_svm)
+
+# make predictions on the test data using best kNN model
+knn_best = knn_grid_search.best_estimator_
+y_pred_knn = knn_best.predict(X_test_encoded)
+accuracy_knn = accuracy_score(y_test, y_pred_knn)
+cm_knn = confusion_matrix(y_test, y_pred_knn)
+
+# plot confusion matrix for Random Forest, SVM and kNN
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+labels = [0, 1]
+
+sns.set(font_scale=1.2)
+sns.heatmap(cm_rf, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[0])
+axes[0].set_xlabel('Predicted label')
+axes[0].set_ylabel('True label')
+axes[0].set_title(f"Random Forest Confusion Matrix\nAccuracy: {accuracy_rf:.2f}")
+
+sns.set(font_scale=1.2)
+sns.heatmap(cm_svm, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[1])
+axes[1].set_xlabel('Predicted label')
+axes[1].set_ylabel('True label')
+axes[1].set_title(f"SVM Confusion Matrix\nAccuracy: {accuracy_svm:.2f}")
+
+sns.set(font_scale=1.2)
+sns.heatmap(cm_knn, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[2])
+axes[2].set_xlabel('Predicted label')
+axes[2].set_ylabel('True label')
+axes[2].set_title(f"kNN Confusion Matrix\nAccuracy: {accuracy_knn:.2f}")
+
+plt.tight_layout()
+plt.show()
+print("Random Forest Classification Report:")
+print(classification_report(y_test, y_pred_rf))
+
+# Print classification reports
+print("SVM Classification Report:")
+print(classification_report(y_test, y_pred_svm))
+
+print("kNN Classification Report:")
+print(classification_report(y_test, y_pred_knn))
+# Puning Parameter-Random Forest
+import numpy as np
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import randint
+
+# define parameter distribution for Random Forest
+param_dist_rf = {'n_estimators': randint(50, 200),
+                 'max_depth': [None] + list(np.arange(10, 21)),
+                 'min_samples_split': randint(2, 11),
+                 'class_weight': [None, 'balanced']}
+
+# perform random search for Random Forest
+rf_random_search = RandomizedSearchCV(estimator=RandomForestClassifier(random_state=42),
+                                      param_distributions=param_dist_rf, 
+                                      n_iter=10, scoring='roc_auc',
+                                      cv=3,
+                                      random_state=42)
+
+rf_random_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each model
+print(f"Random Forest: {rf_grid_search.best_params_}")
+print('Random Forest Best accuracy: %f' % rf_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(rf_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_class_weight', 'param_max_depth', 'param_min_samples_split', 'param_n_estimators', 'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+rf_best = rf_grid_search.best_estimator_
+rf_best.fit(X_train_encoded, y_train)
+
+# Get feature importances
+rf_feature_importances = pd.DataFrame(rf_best.feature_importances_, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# Print feature importances
+rf_feature_importances
+
+# reset the index and make it a column
+rf_feature_importances = rf_feature_importances.reset_index()
+
+rf_feature_importances
+# set plot style
+plt.style.use('seaborn')
+
+# create horizontal histogram
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = plt.cm.get_cmap('cool', len(rf_feature_importances)) # change colormap to 'cool'
+ax.barh(rf_feature_importances['index'], rf_feature_importances['Importance'], align='center', color=colors(np.arange(len(rf_feature_importances))))
+
+# set axis labels and title
+ax.set_xlabel('Importance')
+ax.set_ylabel('Index')
+ax.set_title('The feature importance of Random Forest')
+
+# show plot
+plt.show()
+
+# Puning Parameter-SVM
+# define parameter distribution for SVM
+param_dist_svm = {'C': np.logspace(-1, 1, 100),
+                  'kernel': ['linear', 'rbf'],
+                  'class_weight': [None, 'balanced']}
+
+# perform random search for SVM
+svm_random_search = RandomizedSearchCV(estimator=SVC(random_state=42),
+                                       param_distributions=param_dist_svm, 
+                                       n_iter=10, scoring='roc_auc',
+                                       cv=3,
+                                       random_state=42)
+
+svm_random_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each model
+print(f"SVM: {svm_grid_search.best_params_}")
+print('SVM Best accuracy: %f' % svm_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(svm_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_C', 'param_class_weight', 'param_kernel', 'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+svm_coefs = pd.DataFrame(svm_best.coef_.T, index=X_train_encoded.columns, columns=['Coefficient'])
+svm_coefs = svm_coefs.reindex(svm_coefs.abs().sort_values('Coefficient', ascending=False).index)
+svm_coefs
+
+# reset the index and make it a column
+svm_coefs = svm_coefs.reset_index()
+
+svm_coefs
+# set plot style
+plt.style.use('seaborn')
+
+# create horizontal histogram
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = plt.cm.get_cmap('cool', len(svm_coefs)) # change colormap to 'viridis'
+ax.barh(svm_coefs['index'], svm_coefs['Coefficient'], align='center', color=colors(np.arange(len(svm_coefs))))
+
+# set axis labels and title
+ax.set_xlabel('Importance')
+ax.set_ylabel('Index')
+ax.set_title('The feature importance of SVM')
+
+# show plot
+plt.show()
+
+# Puning Parameter-kNN
+# define parameter distribution for kNN
+param_dist_knn = {'n_neighbors': randint(3, 10),
+                  'weights': ['uniform', 'distance'],
+                  'metric': ['euclidean', 'manhattan', 'chebyshev']}
+
+# perform random search for kNN
+knn_random_search = RandomizedSearchCV(estimator=KNeighborsClassifier(),
+                                       param_distributions=param_dist_knn, 
+                                       n_iter=10, scoring='roc_auc',
+                                       cv=3,
+                                       random_state=42)
+
+knn_random_search.fit(X_train_balanced, y_train_balanced)
+
+# print best hyperparameters for each mode
+
+print(f"kNN: {knn_grid_search.best_params_}")
+print('kNN Best accuracy: %f' % knn_grid_search.best_score_)
+import pandas as pd
+
+# get results from grid search
+results = pd.DataFrame(knn_grid_search.cv_results_)
+
+# sort results by mean_test_score in descending order
+sorted_results = results.sort_values(by='mean_test_score', ascending=False)
+
+# get top 10 parameter sets
+top_10_results = sorted_results.head(10)
+
+# extract the parameter columns
+param_cols = ['param_metric', 'param_n_neighbors', 'param_weights',  'mean_test_score']
+
+# create dataframe of top 10 parameter sets
+top_10_params = top_10_results[param_cols]
+
+# display dataframe
+top_10_params
+from sklearn.inspection import permutation_importance
+from sklearn.neighbors import KNeighborsClassifier
+
+knn_best = knn_random_search.best_estimator_
+result = permutation_importance(knn_best, X_test_encoded, y_test, n_repeats=10, random_state=0)
+importance = result.importances_mean
+
+# create a DataFrame of feature importances
+knn_feature_importances = pd.DataFrame(importance, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# print feature importances
+knn_feature_importances
+# reset the index and make it a column
+knn_feature_importances = knn_feature_importances.reset_index()
+
+knn_feature_importances
+# set plot style
+plt.style.use('seaborn')
+
+# create horizontal histogram
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = plt.cm.get_cmap('cool', len(knn_feature_importances)) # change colormap to 'viridis'
+ax.barh(knn_feature_importances['index'], knn_feature_importances['Importance'], align='center', color=colors(np.arange(len(knn_feature_importances))))
+
+# set axis labels and title
+ax.set_xlabel('Importance')
+ax.set_ylabel('Index')
+ax.set_title('The feature importance of kNN')
+
+# show plot
+plt.show()
+# make predictions on the test data using best Random Forest model
+rf_best = rf_grid_search.best_estimator_
+y_pred_rf = rf_best.predict(X_test_encoded)
+accuracy_rf = accuracy_score(y_test, y_pred_rf)
+cm_rf = confusion_matrix(y_test, y_pred_rf)
+
+# make predictions on the test data using best SVM model
+svm_best = svm_random_search.best_estimator_
+y_pred_svm = svm_best.predict(X_test_encoded)
+accuracy_svm = accuracy_score(y_test, y_pred_svm)
+cm_svm = confusion_matrix(y_test, y_pred_svm)
+
+# make predictions on the test data using best kNN model
+knn_best = knn_grid_search.best_estimator_
+y_pred_knn = knn_best.predict(X_test_encoded)
+accuracy_knn = accuracy_score(y_test, y_pred_knn)
+cm_knn = confusion_matrix(y_test, y_pred_knn)
+
+# plot confusion matrix for Random Forest, SVM and kNN
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+labels = [0, 1]
+
+labels = [0, 1]
+sns.set(font_scale=1.2)
+sns.heatmap(cm_rf, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[0])
+axes[0].set_xlabel('Predicted label')
+axes[0].set_ylabel('True label')
+axes[0].set_title(f"Random Forest Confusion Matrix\nAccuracy: {accuracy_rf:.2f}")
+
+# plot confusion matrix for SVM
+sns.set(font_scale=1.2)
+sns.heatmap(cm_svm, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[1])
+axes[1].set_xlabel('Predicted label')
+axes[1].set_ylabel('True label')
+axes[1].set_title(f"SVM Confusion Matrix\nAccuracy: {accuracy_svm:.2f}")
+
+sns.set(font_scale=1.2)
+sns.heatmap(cm_knn, annot=True, cmap='Blues', fmt='g', xticklabels=labels, yticklabels=labels, ax=axes[2])
+axes[2].set_xlabel('Predicted label')
+axes[2].set_ylabel('True label')
+axes[2].set_title(f"kNN Confusion Matrix\nAccuracy: {accuracy_knn:.2f}")
+
+plt.tight_layout()
+plt.show()
+print("Random Forest Classification Report:")
+print(classification_report(y_test, y_pred_rf))
+
+
+# Print classification reports
+print("SVM Classification Report:")
+print(classification_report(y_test, y_pred_svm))
+
+
+print("kNN Classification Report:")
+print(classification_report(y_test, y_pred_knn))
+# Rebuild model according top 15 features-Random Forest
+# Get the feature importances and sort them in descending order
+rf_feature_importances = pd.DataFrame(rf_best.feature_importances_, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# Select the top 10 feature names
+top_features = list(rf_feature_importances[:15].index)
+
+# Subset the training and test sets using the top 10 feature names
+X_train_top = X_train_encoded[top_features]
+X_test_top = X_test_encoded[top_features]
+
+# Fit a new random forest model using the top 10 features
+rf_top = RandomForestClassifier(random_state=42, **rf_random_search.best_params_)
+rf_top.fit(X_train_top, y_train)
+
+# Print best hyperparameters and accuracy for random forest
+print(f"Random forest: {rf_random_search.best_params_}")
+print('Random forest Best accuracy: %f' % rf_random_search.best_score_)
+
+# Evaluate the model on the test set
+y_pred = rf_top.predict(X_test_top)
+print(classification_report(y_test, y_pred))
+
+# Get the feature importances and sort them in descending order
+rf_feature_importances = pd.DataFrame(rf_best.feature_importances_, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# Select the top 15 feature names with their importance values
+rf_top_features = rf_feature_importances[:15]
+
+# Print the top 15 features and their importance values
+rf_top_features
+
+# reset the index and make it a column
+rf_top_features = rf_top_features.reset_index()
+
+rf_top_features
+# set plot style
+plt.style.use('seaborn')
+
+# create horizontal histogram
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = plt.cm.get_cmap('cool', len(rf_top_features)) # change colormap to 'cool'
+ax.barh(rf_top_features['index'], rf_top_features['Importance'], align='center', color=colors(np.arange(len(rf_feature_importances))))
+
+# set axis labels and title
+ax.set_xlabel('Importance')
+ax.set_ylabel('Index')
+ax.set_title('The feature importance of Random Forest')
+
+# show plot
+plt.show()
+from sklearn.metrics import confusion_matrix, accuracy_score
+import seaborn as sns
+
+# Predict on the test set
+y_pred = rf_top.predict(X_test_top)
+
+# Create a confusion matrix
+conf_mat = confusion_matrix(y_test, y_pred)
+
+# Calculate the accuracy
+accuracy = accuracy_score(y_test, y_pred)
+
+# Create a heatmap of the confusion matrix
+sns.heatmap(conf_mat, annot=True, cmap='Blues')
+plt.title('Confusion Matrix (Accuracy: {:.2f}%)'.format(accuracy*100))
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+
+# Add the accuracy to the plot
+# plt.text(x=0.5, y=2.2, s='Accuracy = {:.2f}%'.format(accuracy*100), ha='center', va='center', fontsize=12)
+
+plt.show()
+
+# Rebuild model according top 15 features-SVM
+from sklearn.svm import SVC
+
+# Get the feature importances and sort them in descending order
+rf_feature_importances = pd.DataFrame(rf_best.feature_importances_, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# Select the top 10 feature names
+top_features = list(rf_feature_importances[:15].index)
+
+# Subset the training and test sets using the top 10 feature names
+X_train_top = X_train_encoded[top_features]
+X_test_top = X_test_encoded[top_features]
+
+
+# perform random search for SVM
+svm_random_search = RandomizedSearchCV(estimator=SVC(random_state=42),
+                                       param_distributions=param_dist_svm, 
+                                       n_iter=10, scoring='roc_auc',
+                                       cv=3,
+                                       random_state=42)
+
+svm_random_search.fit(X_train_top, y_train)
+
+# Print best hyperparameters for SVM
+print(f"SVM: {svm_random_search.best_params_}")
+print('SVM Best accuracy: %f' % svm_random_search.best_score_)
+
+# Fit a new SVM model using the top 10 features
+svm_top = SVC(random_state=42, **svm_random_search.best_params_)
+svm_top.fit(X_train_top, y_train)
+
+# Evaluate the model on the test set
+y_pred = svm_top.predict(X_test_top)
+print(classification_report(y_test, y_pred))
+
+from sklearn.metrics import confusion_matrix, accuracy_score
+import seaborn as sns
+
+# Create a confusion matrix
+conf_mat = confusion_matrix(y_test, y_pred)
+
+# Calculate the accuracy
+accuracy = accuracy_score(y_test, y_pred)
+
+# Create a heatmap of the confusion matrix
+sns.heatmap(conf_mat, annot=True, cmap='Blues')
+plt.title('Confusion Matrix (Accuracy: {:.2f}%)'.format(accuracy*100))
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+
+# Add the accuracy to the plot
+# plt.text(x=0.5, y=2.2, s='Accuracy = {:.2f}%'.format(accuracy*100), ha='center', va='center', fontsize=12)
+
+plt.show()
+# Rebuild model according top 15 features-kNN
+from sklearn.neighbors import KNeighborsClassifier
+
+# Get the feature importances and sort them in descending order
+rf_feature_importances = pd.DataFrame(rf_best.feature_importances_, index=X_train_encoded.columns, columns=['Importance']).sort_values('Importance', ascending=False)
+
+# Select the top 10 feature names
+top_features = list(rf_feature_importances[:15].index)
+
+# Subset the training and test sets using the top 10 feature names
+X_train_top = X_train_encoded[top_features]
+X_test_top = X_test_encoded[top_features]
+
+# Perform random search for KNN
+knn_random_search = RandomizedSearchCV(estimator=KNeighborsClassifier(),
+                                       param_distributions=param_dist_knn, 
+                                       n_iter=10, scoring='roc_auc',
+                                       cv=3,
+                                       random_state=42)
+
+knn_random_search.fit(X_train_top, y_train)
+
+# Print best hyperparameters for KNN
+print(f"KNN: {knn_random_search.best_params_}")
+print('KNN Best accuracy: %f' % knn_random_search.best_score_)
+
+# Fit a new KNN model using the top 10 features
+knn_top = KNeighborsClassifier(**knn_random_search.best_params_)
+knn_top.fit(X_train_top, y_train)
+
+# Evaluate the model on the test set
+y_pred = knn_top.predict(X_test_top)
+print(classification_report(y_test, y_pred))
+from sklearn.metrics import confusion_matrix, accuracy_score
+import seaborn as sns
+
+# Create a confusion matrix
+conf_mat = confusion_matrix(y_test, y_pred)
+
+# Calculate the accuracy
+accuracy = accuracy_score(y_test, y_pred)
+
+# Create a heatmap of the confusion matrix
+sns.heatmap(conf_mat, annot=True, cmap='Blues')
+plt.title('Confusion Matrix (Accuracy: {:.2f}%)'.format(accuracy*100))
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+
+# Add the accuracy to the plot
+#plt.text(x=0.5, y=2.2, s='Accuracy = {:.2f}%'.format(accuracy*100), ha='center', va='center', fontsize=12)
+
+plt.show()
 
